@@ -1,0 +1,8 @@
+{
+  "name": "bilt-assessment-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:web": "node --test web/dashboard.test.js"
+  }
+}
