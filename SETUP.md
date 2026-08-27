@@ -37,6 +37,7 @@ src/main/java/com/rentrewards/challenge/
   model/
     PaymentEvent.java      - incoming webhook payload
     MemberAccount.java     - in-memory member state (streak, points/month)
+    ProcessingOutcome.java - AWARDED, DUPLICATE, or CAPPED
     PointsResult.java      - outcome of processing one event
   service/
     PointsCalculator.java  - base points, multiplier, streak bonus rules

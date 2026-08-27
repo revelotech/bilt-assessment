@@ -1,8 +1,8 @@
 package com.rentrewards.challenge.model;
 
 import java.time.YearMonth;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Minimal in-memory representation of a member's rewards account.
@@ -13,7 +13,7 @@ public class MemberAccount {
 
     private final String memberId;
     private int currentStreakMonths;
-    private final Map<YearMonth, Long> pointsByMonth = new HashMap<>();
+    private final Map<YearMonth, Long> pointsByMonth = new ConcurrentHashMap<>();
 
     public MemberAccount(String memberId, int currentStreakMonths) {
         this.memberId = memberId;

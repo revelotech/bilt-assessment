@@ -12,8 +12,6 @@ export function buildViewModel(result, member) {
     (member.pointsThisMonth / member.monthlyCap) * 100,
   );
 
-  // BUG: every outcome is presented as a successful credit. Duplicate
-  // deliveries and a reached monthly cap need distinct states.
   return {
     title: `${numberFormatter.format(result.pointsAwarded)} points credited`,
     description: "Your rent payment was processed successfully.",

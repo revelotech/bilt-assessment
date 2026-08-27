@@ -2,6 +2,7 @@ package com.rentrewards.challenge.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Objects;
 
 /**
  * Represents a rent/mortgage payment event received from the external
@@ -19,11 +20,11 @@ public class PaymentEvent {
 
     public PaymentEvent(String eventId, String memberId, BigDecimal amount,
                          boolean paidWithLinkedAccount, LocalDate paymentDate) {
-        this.eventId = eventId;
-        this.memberId = memberId;
-        this.amount = amount;
+        this.eventId = Objects.requireNonNull(eventId, "eventId");
+        this.memberId = Objects.requireNonNull(memberId, "memberId");
+        this.amount = Objects.requireNonNull(amount, "amount");
         this.paidWithLinkedAccount = paidWithLinkedAccount;
-        this.paymentDate = paymentDate;
+        this.paymentDate = Objects.requireNonNull(paymentDate, "paymentDate");
     }
 
     public String getEventId() {

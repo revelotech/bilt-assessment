@@ -11,7 +11,7 @@ const member = {
 
 test("shows awarded points as a successful payment", () => {
   const view = buildViewModel(
-    { pointsAwarded: 1_500, skippedAsDuplicate: false },
+    { pointsAwarded: 1_500, outcome: "AWARDED" },
     member,
   );
 
@@ -22,7 +22,7 @@ test("shows awarded points as a successful payment", () => {
 
 test("shows a duplicate event as skipped rather than credited", () => {
   const view = buildViewModel(
-    { pointsAwarded: 0, skippedAsDuplicate: true },
+    { pointsAwarded: 0, outcome: "DUPLICATE" },
     member,
   );
 
@@ -32,7 +32,7 @@ test("shows a duplicate event as skipped rather than credited", () => {
 
 test("shows when the member has reached the monthly cap", () => {
   const view = buildViewModel(
-    { pointsAwarded: 0, skippedAsDuplicate: false },
+    { pointsAwarded: 0, outcome: "CAPPED" },
     { ...member, pointsThisMonth: 100_000 },
   );
 

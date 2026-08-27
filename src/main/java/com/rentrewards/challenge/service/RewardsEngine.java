@@ -3,17 +3,18 @@ package com.rentrewards.challenge.service;
 import com.rentrewards.challenge.model.MemberAccount;
 import com.rentrewards.challenge.model.PaymentEvent;
 import com.rentrewards.challenge.model.PointsResult;
+import com.rentrewards.challenge.model.ProcessingOutcome;
 
 import java.time.YearMonth;
 
 /**
  * Orchestrates the processing of an incoming payment webhook event:
  *
- *  1. Atomically claim the event, or ignore it if it's a duplicate delivery.
+ *  1. Ignore the event if it is a duplicate delivery.
  *  2. Calculate base points (with linked-account multiplier).
  *  3. Apply streak bonus if the member is eligible.
  *  4. Enforce the monthly points cap per member.
- *  5. Record the points.
+ *  5. Record the points and mark the event as processed.
  */
 public class RewardsEngine {
 
@@ -28,8 +29,8 @@ public class RewardsEngine {
     }
 
     public PointsResult processPayment(PaymentEvent event, MemberAccount member) {
-        if (!processedEventStore.recordIfNew(event.getEventId())) {
-            return new PointsResult(member.getMemberId(), 0, true);
+        if (processedEventStore.isDuplicate(event.getEventId())) {
+            return new PointsResult(member.getMemberId(), 0, ProcessingOutcome.DUPLICATE);
         }
 
         long basePoints = pointsCalculator.calculateBasePoints(event);
@@ -42,7 +43,11 @@ public class RewardsEngine {
         long pointsToAward = Math.min(pointsWithBonus, remainingCap);
 
         member.addPointsForMonth(month, pointsToAward);
+        processedEventStore.markProcessed(event.getEventId());
 
-        return new PointsResult(member.getMemberId(), pointsToAward, false);
+        ProcessingOutcome outcome = pointsToAward == 0
+                ? ProcessingOutcome.CAPPED
+                : ProcessingOutcome.AWARDED;
+        return new PointsResult(member.getMemberId(), pointsToAward, outcome);
     }
 }

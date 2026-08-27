@@ -41,13 +41,13 @@ We've had two related reports:
 ## Your task
 
 1. Run both existing test suites (see `SETUP.md`).
-2. Diagnose and fix the idempotency bug. Claiming an event must be atomic:
-   when concurrent workers receive the same `eventId`, at most one may
-   award points.
-3. Fix the dashboard states in `web/dashboard.js`:
-   - awarded points: success;
-   - duplicate event: neutral/skipped;
-   - monthly cap reached: warning.
+2. Diagnose and fix the idempotency bug. The same `eventId` must award
+   points at most once, including when deliveries arrive out of order or
+   overlap on different workers.
+3. Drive the dashboard from `PointsResult.getOutcome()` in `web/dashboard.js`:
+   - `AWARDED`: success;
+   - `DUPLICATE`: neutral/skipped;
+   - `CAPPED`: warning.
 4. Keep all existing business rules and passing expectations intact.
 5. Add or improve tests when they make your reasoning clearer.
 
