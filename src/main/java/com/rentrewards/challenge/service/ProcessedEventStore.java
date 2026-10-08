@@ -1,21 +1,22 @@
 package com.rentrewards.challenge.service;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Tracks which webhook events have already been processed, so that the
  * RewardsEngine can ignore duplicate deliveries from the payment processor.
  */
 public class ProcessedEventStore {
 
-    private String lastProcessedEventId;
+    private final Set<String> processedEventIds = ConcurrentHashMap.newKeySet();
 
     /**
-     * @return true if this eventId has already been processed before.
+     * Atomically claims the eventId.
+     *
+     * @return true only for the first caller; false means a duplicate.
      */
-    public boolean isDuplicate(String eventId) {
-        return eventId.equals(lastProcessedEventId);
-    }
-
-    public void markProcessed(String eventId) {
-        this.lastProcessedEventId = eventId;
+    public boolean markIfNew(String eventId) {
+        return processedEventIds.add(eventId);
     }
 }

@@ -35,4 +35,20 @@ public class MemberAccount {
     public void addPointsForMonth(YearMonth month, long points) {
         pointsByMonth.merge(month, points, Long::sum);
     }
+
+    /**
+     * Adds as many points as fit under the monthly cap, atomically.
+     *
+     * @return the points actually added.
+     */
+    public long addPointsForMonthUpToCap(YearMonth month, long points, long monthlyCap) {
+        long[] added = new long[1];
+        pointsByMonth.compute(month, (m, current) -> {
+            long alreadyEarned = current == null ? 0L : current;
+            long remainingCap = Math.max(0L, monthlyCap - alreadyEarned);
+            added[0] = Math.min(points, remainingCap);
+            return alreadyEarned + added[0];
+        });
+        return added[0];
+    }
 }

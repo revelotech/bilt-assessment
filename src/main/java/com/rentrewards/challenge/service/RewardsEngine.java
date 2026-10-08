@@ -10,11 +10,11 @@ import java.time.YearMonth;
 /**
  * Orchestrates the processing of an incoming payment webhook event:
  *
- *  1. Ignore the event if it is a duplicate delivery.
+ *  1. Atomically claim the event; ignore it if it is a duplicate delivery.
  *  2. Calculate base points (with linked-account multiplier).
  *  3. Apply streak bonus if the member is eligible.
- *  4. Enforce the monthly points cap per member.
- *  5. Record the points and mark the event as processed.
+ *  4. Enforce the monthly points cap per member and record the points
+ *     (a single atomic step on the member account).
  */
 public class RewardsEngine {
 
@@ -29,7 +29,10 @@ public class RewardsEngine {
     }
 
     public PointsResult processPayment(PaymentEvent event, MemberAccount member) {
-        if (processedEventStore.isDuplicate(event.getEventId())) {
+        // The claim is not released if processing throws afterwards (e.g.
+        // ArithmeticException on a huge amount), so a retry would be skipped
+        // as a duplicate. Accepted for this in-memory scope.
+        if (!processedEventStore.markIfNew(event.getEventId())) {
             return new PointsResult(member.getMemberId(), 0, ProcessingOutcome.DUPLICATE);
         }
 
@@ -38,12 +41,8 @@ public class RewardsEngine {
                 basePoints, member.getCurrentStreakMonths());
 
         YearMonth month = YearMonth.from(event.getPaymentDate());
-        long alreadyEarnedThisMonth = member.getPointsForMonth(month);
-        long remainingCap = Math.max(0, MONTHLY_POINTS_CAP - alreadyEarnedThisMonth);
-        long pointsToAward = Math.min(pointsWithBonus, remainingCap);
-
-        member.addPointsForMonth(month, pointsToAward);
-        processedEventStore.markProcessed(event.getEventId());
+        long pointsToAward = member.addPointsForMonthUpToCap(
+                month, pointsWithBonus, MONTHLY_POINTS_CAP);
 
         ProcessingOutcome outcome = pointsToAward == 0
                 ? ProcessingOutcome.CAPPED
