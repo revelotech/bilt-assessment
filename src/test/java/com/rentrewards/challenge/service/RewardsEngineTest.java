@@ -116,6 +116,24 @@ class RewardsEngineTest {
     }
 
     @Test
+    void doesNotAwardPointsForANewDeliveryWithTheSameEventId() {
+        MemberAccount member = new MemberAccount("member-1", 0);
+        PaymentEvent original = new PaymentEvent("evt-1", "member-1",
+                new BigDecimal("1500"), false, LocalDate.of(2026, 3, 1));
+        PaymentEvent redelivery = new PaymentEvent("evt-1", "member-1",
+                new BigDecimal("1500"), false, LocalDate.of(2026, 3, 1));
+
+        PointsResult first = engine.processPayment(original, member);
+        PointsResult retry = engine.processPayment(redelivery, member);
+
+        assertEquals(1500, first.getPointsAwarded());
+        assertEquals(ProcessingOutcome.AWARDED, first.getOutcome());
+        assertEquals(0, retry.getPointsAwarded());
+        assertEquals(ProcessingOutcome.DUPLICATE, retry.getOutcome());
+        assertEquals(1500, member.getPointsForMonth(YearMonth.of(2026, 3)));
+    }
+
+    @Test
     void doesNotDoubleAwardPointsWhenAnOlderEventIsResentOutOfOrder() {
         MemberAccount member = new MemberAccount("member-1", 0);
         PaymentEvent eventA = new PaymentEvent("evt-A", "member-1",

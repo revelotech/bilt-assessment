@@ -29,6 +29,13 @@ public class RewardsEngine {
     }
 
     public PointsResult processPayment(PaymentEvent event, MemberAccount member) {
+        // lock the shared store
+        synchronized (processedEventStore) {
+            return processPaymentLock(event, member);
+        }
+    }
+
+    private PointsResult processPaymentLock(PaymentEvent event, MemberAccount member) {
         if (processedEventStore.isDuplicate(event.getEventId())) {
             return new PointsResult(member.getMemberId(), 0, ProcessingOutcome.DUPLICATE);
         }

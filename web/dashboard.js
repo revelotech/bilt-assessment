@@ -12,12 +12,31 @@ export function buildViewModel(result, member) {
     (member.pointsThisMonth / member.monthlyCap) * 100,
   );
 
-  return {
-    title: `${numberFormatter.format(result.pointsAwarded)} points credited`,
-    description: "Your rent payment was processed successfully.",
-    tone: "success",
-    progressPercent,
-  };
+  switch (result.outcome) {
+    case "AWARDED":
+      return {
+        title: `${numberFormatter.format(result.pointsAwarded)} points credited`,
+        description: "Your rent payment was processed successfully.",
+        tone: "success",
+        progressPercent,
+      };
+    case "DUPLICATE":
+      return {
+        title: "Duplicate event skipped",
+        description: "This payment event was already processed. No additional points were credited.",
+        tone: "neutral",
+        progressPercent,
+      };
+    case "CAPPED":
+      return {
+        title: "Monthly cap reached",
+        description: "You have reached your monthly points cap. No points were credited for this payment.",
+        tone: "warning",
+        progressPercent,
+      };
+    default:
+      throw new Error(`Unknown processing outcome: ${result.outcome}`);
+  }
 }
 
 export function renderDashboard(result, member) {
