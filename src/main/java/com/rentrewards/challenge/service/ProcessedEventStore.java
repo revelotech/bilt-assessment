@@ -6,16 +6,26 @@ package com.rentrewards.challenge.service;
  */
 public class ProcessedEventStore {
 
-    private String lastProcessedEventId;
+    private final java.util.Set<String> processedEventIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /**
      * @return true if this eventId has already been processed before.
      */
     public boolean isDuplicate(String eventId) {
-        return eventId.equals(lastProcessedEventId);
+        return processedEventIds.contains(eventId);
     }
 
     public void markProcessed(String eventId) {
-        this.lastProcessedEventId = eventId;
+        processedEventIds.add(eventId);
+    }
+
+    /**
+     * Atomically records the eventId if it has not been processed yet.
+     *
+     * @return true if this is the first time the event is recorded (not a duplicate),
+     *         false if it was already recorded previously.
+     */
+    public boolean tryRecord(String eventId) {
+        return processedEventIds.add(eventId);
     }
 }

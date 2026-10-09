@@ -40,3 +40,13 @@ test("shows when the member has reached the monthly cap", () => {
   assert.equal(view.tone, "warning");
   assert.equal(view.progressPercent, 100);
 });
+
+test("caps progress percent at 100 even if points exceed monthly cap", () => {
+  const view = buildViewModel(
+    { pointsAwarded: 0, outcome: "CAPPED" },
+    { ...member, pointsThisMonth: 120_000 },
+  );
+
+  assert.equal(view.progressPercent, 100);
+});
+
