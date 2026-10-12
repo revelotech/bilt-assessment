@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -175,6 +176,104 @@ class RewardsEngineTest {
                     "at most one worker may award points for the same eventId");
             assertEquals(1500, member.getPointsForMonth(YearMonth.of(2026, 3)));
         } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void sharedStorePreventsDuplicateAwardsAcrossEngineInstances() throws Exception {
+        ProcessedEventStore store = new ProcessedEventStore();
+        RewardsEngine firstEngine = new RewardsEngine(new PointsCalculator(), store);
+        RewardsEngine secondEngine = new RewardsEngine(new PointsCalculator(), store);
+        MemberAccount member = new MemberAccount("member-1", 0);
+        PaymentEvent event = new PaymentEvent("evt-shared", "member-1",
+                new BigDecimal("1500"), false, LocalDate.of(2026, 3, 1));
+
+        List<PointsResult> results = processConcurrently(List.of(
+                () -> firstEngine.processPayment(event, member),
+                () -> secondEngine.processPayment(event, member)));
+
+        assertEquals(1L, results.stream()
+                .filter(result -> result.getOutcome() == ProcessingOutcome.AWARDED)
+                .count());
+        assertEquals(1L, results.stream()
+                .filter(result -> result.getOutcome() == ProcessingOutcome.DUPLICATE)
+                .count());
+        assertEquals(1500L, results.stream().mapToLong(PointsResult::getPointsAwarded).sum());
+        assertEquals(1500L, member.getPointsForMonth(YearMonth.of(2026, 3)));
+    }
+
+    @Test
+    void remembersCappedEventsAfterLaterEventsAreProcessed() {
+        MemberAccount member = new MemberAccount("member-1", 0);
+        YearMonth month = YearMonth.of(2026, 3);
+        member.addPointsForMonth(month, 100_000L);
+        PaymentEvent cappedEvent = new PaymentEvent("evt-capped", "member-1",
+                new BigDecimal("50"), false, LocalDate.of(2026, 3, 2));
+        PaymentEvent laterEvent = new PaymentEvent("evt-later", "member-1",
+                new BigDecimal("75"), false, LocalDate.of(2026, 3, 3));
+
+        PointsResult first = engine.processPayment(cappedEvent, member);
+        PointsResult later = engine.processPayment(laterEvent, member);
+        PointsResult retry = engine.processPayment(cappedEvent, member);
+
+        assertEquals(ProcessingOutcome.CAPPED, first.getOutcome());
+        assertEquals(ProcessingOutcome.CAPPED, later.getOutcome());
+        assertEquals(ProcessingOutcome.DUPLICATE, retry.getOutcome());
+        assertEquals(0L, retry.getPointsAwarded());
+        assertEquals(100_000L, member.getPointsForMonth(month));
+    }
+
+    @Test
+    void concurrentDistinctEventsRespectTheMonthlyCap() throws Exception {
+        ProcessedEventStore store = new ProcessedEventStore();
+        RewardsEngine firstEngine = new RewardsEngine(new PointsCalculator(), store);
+        RewardsEngine secondEngine = new RewardsEngine(new PointsCalculator(), store);
+        MemberAccount member = new MemberAccount("member-1", 0);
+        YearMonth month = YearMonth.of(2026, 3);
+        member.addPointsForMonth(month, 99_000L);
+        PaymentEvent firstEvent = new PaymentEvent("evt-cap-a", "member-1",
+                new BigDecimal("800"), false, LocalDate.of(2026, 3, 1));
+        PaymentEvent secondEvent = new PaymentEvent("evt-cap-b", "member-1",
+                new BigDecimal("800"), false, LocalDate.of(2026, 3, 2));
+
+        List<PointsResult> results = processConcurrently(List.of(
+                () -> firstEngine.processPayment(firstEvent, member),
+                () -> secondEngine.processPayment(secondEvent, member)));
+
+        // Either event may win the race; the loser gets the partial 200.
+        assertEquals(List.of(200L, 800L), results.stream()
+                .map(PointsResult::getPointsAwarded).sorted().toList());
+        assertTrue(results.stream()
+                .allMatch(result -> result.getOutcome() == ProcessingOutcome.AWARDED));
+        assertEquals(100_000L, member.getPointsForMonth(month));
+    }
+
+    private List<PointsResult> processConcurrently(
+            List<Callable<PointsResult>> actions) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(actions.size());
+        CountDownLatch ready = new CountDownLatch(actions.size());
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            List<Future<PointsResult>> futures = new ArrayList<>();
+            for (Callable<PointsResult> action : actions) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return action.call();
+                }));
+            }
+            assertTrue(ready.await(2, TimeUnit.SECONDS));
+            start.countDown();
+
+            List<PointsResult> results = new ArrayList<>();
+            for (Future<PointsResult> future : futures) {
+                results.add(future.get(2, TimeUnit.SECONDS));
+            }
+            return results;
+        } finally {
+            start.countDown();
             executor.shutdownNow();
         }
     }

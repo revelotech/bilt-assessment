@@ -29,6 +29,15 @@ public class RewardsEngine {
     }
 
     public PointsResult processPayment(PaymentEvent event, MemberAccount member) {
+        // Lock on the shared store (not `this`) so engines sharing it are
+        // serialized: the duplicate check, cap read/update and markProcessed
+        // must happen as one atomic step.
+        synchronized (processedEventStore) {
+            return processPaymentLocked(event, member);
+        }
+    }
+
+    private PointsResult processPaymentLocked(PaymentEvent event, MemberAccount member) {
         if (processedEventStore.isDuplicate(event.getEventId())) {
             return new PointsResult(member.getMemberId(), 0, ProcessingOutcome.DUPLICATE);
         }

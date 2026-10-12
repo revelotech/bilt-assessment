@@ -76,3 +76,30 @@ solution is preferable to a large rewrite.
 Fork this public repository, commit your changes, and share the URL of your
 public fork. Please do not squash away the baseline history: evaluation is
 limited to your diff from the original repository.
+
+## Solution notes
+
+- **Idempotency:** `ProcessedEventStore` now keeps every processed `eventId`
+  (it previously remembered only the last one, so `A → B → A` re-awarded A).
+  `RewardsEngine.processPayment` runs the whole check → calculate → cap →
+  award → mark-processed flow while holding the shared store's monitor. This
+  makes duplicate detection and the monthly-cap read/update atomic, including
+  across separate engine instances that share a store.
+- **Dashboard:** `buildViewModel` maps each `outcome` to its own copy and tone
+  (`AWARDED` → success, `DUPLICATE` → neutral, `CAPPED` → warning) and rejects
+  unknown outcomes rather than claiming success.
+- **Trade-offs:** processing is serialized per store, which keeps the
+  in-memory exercise simple. Cross-process coordination, durability across
+  restarts and pruning of old event IDs are out of scope.
+- **Known limitations (left as-is to keep the existing rules intact):**
+  - The engine reports `CAPPED` for any new event that earns zero points,
+    including sub-$1 payments that round down to 0, so the dashboard can show
+    "Monthly cap reached" before the cap is actually hit.
+  - Event IDs are not validated: a `null` `eventId` is stored like any other
+    ID, so later null-ID events would be treated as duplicates. Rejecting
+    malformed webhooks belongs at the input boundary.
+  - The monthly cap is only atomic for engines that share the same
+    `ProcessedEventStore`; engines with separate stores updating the same
+    `MemberAccount` are not coordinated.
+
+Validate with `mvn test` and `npm run test:web`.
