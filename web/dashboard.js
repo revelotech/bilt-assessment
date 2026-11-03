@@ -6,18 +6,40 @@ const toneClasses = {
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
+// One entry per ProcessingOutcome on the backend. The UI reads the outcome
+// reported by the server instead of inferring it from pointsAwarded.
+const outcomeViews = {
+  AWARDED: (result) => ({
+    title: `${numberFormatter.format(result.pointsAwarded)} points credited`,
+    description: "Your rent payment was processed successfully.",
+    tone: "success",
+  }),
+  DUPLICATE: () => ({
+    title: "Duplicate event skipped",
+    description:
+      "This payment was already processed, so no additional points were credited.",
+    tone: "neutral",
+  }),
+  CAPPED: () => ({
+    title: "Monthly cap reached",
+    description:
+      "Your payment was received, but you've hit this month's points cap, so no points were credited.",
+    tone: "warning",
+  }),
+};
+
 export function buildViewModel(result, member) {
+  const buildOutcomeView = outcomeViews[result.outcome];
+  if (!buildOutcomeView) {
+    throw new Error(`Unknown processing outcome: ${result.outcome}`);
+  }
+
   const progressPercent = Math.min(
     100,
     (member.pointsThisMonth / member.monthlyCap) * 100,
   );
 
-  return {
-    title: `${numberFormatter.format(result.pointsAwarded)} points credited`,
-    description: "Your rent payment was processed successfully.",
-    tone: "success",
-    progressPercent,
-  };
+  return { ...buildOutcomeView(result), progressPercent };
 }
 
 export function renderDashboard(result, member) {
