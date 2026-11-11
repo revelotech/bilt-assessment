@@ -6,6 +6,31 @@ const toneClasses = {
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
+function buildStatusView(result) {
+  switch (result.outcome) {
+    case "AWARDED":
+      return {
+        title: `${numberFormatter.format(result.pointsAwarded)} points credited`,
+        description: "Your rent payment earned points within your monthly limit.",
+        tone: "success",
+      };
+    case "DUPLICATE":
+      return {
+        title: "Duplicate event skipped",
+        description: "This payment event was already received. No additional points were credited.",
+        tone: "neutral",
+      };
+    case "CAPPED":
+      return {
+        title: "Monthly cap reached",
+        description: "You have reached your monthly points limit. No points were credited for this payment.",
+        tone: "warning",
+      };
+    default:
+      throw new Error(`Unknown processing outcome: ${result.outcome}`);
+  }
+}
+
 export function buildViewModel(result, member) {
   const progressPercent = Math.min(
     100,
@@ -13,9 +38,7 @@ export function buildViewModel(result, member) {
   );
 
   return {
-    title: `${numberFormatter.format(result.pointsAwarded)} points credited`,
-    description: "Your rent payment was processed successfully.",
-    tone: "success",
+    ...buildStatusView(result),
     progressPercent,
   };
 }

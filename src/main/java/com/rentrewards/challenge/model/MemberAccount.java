@@ -12,8 +12,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MemberAccount {
 
     private final String memberId;
-    private int currentStreakMonths;
+    private final int currentStreakMonths;
     private final Map<YearMonth, Long> pointsByMonth = new ConcurrentHashMap<>();
+    private final Object pointsLock = new Object();
 
     public MemberAccount(String memberId, int currentStreakMonths) {
         this.memberId = memberId;
@@ -33,6 +34,19 @@ public class MemberAccount {
     }
 
     public void addPointsForMonth(YearMonth month, long points) {
-        pointsByMonth.merge(month, points, Long::sum);
+        synchronized (pointsLock) {
+            pointsByMonth.merge(month, points, Long::sum);
+        }
+    }
+
+    /** Atomically credits the available allowance and returns the points awarded. */
+    public long awardPointsUpToCap(YearMonth month, long requestedPoints, long monthlyCap) {
+        synchronized (pointsLock) {
+            long alreadyEarned = getPointsForMonth(month);
+            long remainingCap = Math.max(0, monthlyCap - alreadyEarned);
+            long pointsToAward = Math.min(requestedPoints, remainingCap);
+            pointsByMonth.merge(month, pointsToAward, Long::sum);
+            return pointsToAward;
+        }
     }
 }
